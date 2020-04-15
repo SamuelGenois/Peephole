@@ -92,6 +92,56 @@ int simplify_astore(CODE **c)
   }
   return 0;
 }
+/*
+ * dup
+ * ....A
+ * pop
+ * ------>
+ * ....A
+ * A must not affect or use any element that is currently being dup or lower
+ * The whole dup -- pop must not contains any label, goto, return or comparison
+ * The whole dup -- pop must not change the stack size
+ */
+int simplify_dup_pop(CODE **c){
+  int t_inc = 0, inc, affected, use;
+  CODE *p = *c;
+  if(is_dup(p)){
+    stack_effect(p,&t_inc,&affected,&use);
+    p = p->next;
+    while(!is_pop(p)){
+      if(stack_effect(p,&inc,&affected,&use) == 0 && (t_inc - affected) >= 0 && (t_inc - use) >= 0 && (t_inc += inc) >= 1){
+        printf("Something %d\n", t_inc);
+        p = p->next;
+      }
+      else{
+        printf("Somethingelse\n");
+        return 0;
+      }
+    }
+    printf("t_inc: %d\n",t_inc);
+    if(t_inc == 1){
+      return replace(c,1,NULL) && replace(&p,1,NULL);
+    }
+  }
+  return 0;
+}
+
+ int mul_constants(CODE **c){
+   int inc = 0;
+   int i;
+   int loop = -1;
+   CODE *p = *c;
+   while(is_ldc_int(p, &i) && is_imul(next(p))){
+     ++loop;
+     inc *= i;
+     p = next(next(p));
+   }
+   if(loop == 0) return 0;
+
+   return replace(c,(loop+1)*2,makeCODEldc_int(inc,
+                      makeCODEimul(NULL)
+   ));
+ }
 
 /* iload x
  * ldc k   (0<=k<=127)
@@ -108,6 +158,25 @@ int positive_increment(CODE **c)
       is_istore(next(next(next(*c))),&y) &&
       x==y && 0<=k && k<=127) {
      return replace(c,4,makeCODEiinc(x,k,NULL));
+  }
+  return 0;
+}
+
+/* iload x
+ * ldc k   (0<=k<=127)
+ * isub
+ * istore x
+ * --------->
+ * iinc x -k
+ */ 
+int negative_increment(CODE **c)
+{ int x,y,k;
+  if (is_iload(*c,&x) &&
+      is_ldc_int(next(*c),&k) &&
+      is_isub(next(next(*c))) &&
+      is_istore(next(next(next(*c))),&y) &&
+      x==y && 0<=k && k<=127) {
+     return replace(c,4,makeCODEiinc(x,-k,NULL));
   }
   return 0;
 }
@@ -174,10 +243,27 @@ int remove_storeloadcouple(CODE **c){
      p = next(next(p));
    }
    if(loop <= 0) return 0;
-   return replace(c,2,makeCODEldc_int(inc,
+   return replace(c,(loop+1)*2,makeCODEldc_int(inc,
                       makeCODEiadd(NULL)
    ));
  }
+
+/* dup
+ * istore x
+ * pop
+ * -------->
+ * istore x
+ */
+ 
+int simplify_istore(CODE **c)
+{ int x;
+  if (is_dup(*c) &&
+      is_istore(next(*c),&x) &&
+      is_pop(next(next(*c)))) {
+     return replace(c,3,makeCODEistore(x,NULL));
+  }
+  return 0;
+}
 
 /*
  * ldc a
@@ -190,7 +276,7 @@ int remove_storeloadcouple(CODE **c){
  * -------->
  * ldc_int (a*b*...*n)
  * imul
- */
+ *
  int mul_constants(CODE **c){
    int inc = 0;
    int i;
@@ -203,20 +289,31 @@ int remove_storeloadcouple(CODE **c){
    }
    if(loop == 0) return 0;
 
-   return replace(c,2,makeCODEldc_int(inc,
+   return replace(c,(loop+1)*2,makeCODEldc_int(inc,
                       makeCODEimul(NULL)
    ));
  }
-
+*/
 
 void init_patterns(void) {
-
 	ADD_PATTERN(simplify_multiplication_right);
+  ADD_PATTERN(simplify_istore);
+	ADD_PATTERN(simplify_astore);
+  ADD_PATTERN(simplify_dup_pop);
+	ADD_PATTERN(positive_increment);
+	ADD_PATTERN(negative_increment);
+	ADD_PATTERN(simplify_goto_goto);
+  ADD_PATTERN(more_multiplication_simplification);
+	ADD_PATTERN(add_constants);
+/*
+	ADD_PATTERN(simplify_multiplication_right);
+  ADD_PATTERN(simplify_istore);
 	ADD_PATTERN(simplify_astore);
 	ADD_PATTERN(positive_increment);
 	ADD_PATTERN(simplify_goto_goto);
 	ADD_PATTERN(remove_storeloadcouple);
 	ADD_PATTERN(add_constants);
 	ADD_PATTERN(mul_constants);
+  */
 
 }
