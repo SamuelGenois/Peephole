@@ -10,6 +10,49 @@
  * email: hendren@cs.mcgill.ca, mis@brics.dk
  */
 
+/* ldc x          ldc x
+ * iload k        iload k    
+ * imul           iadd   
+ * ------>        ------>
+ * iload k        iload k 
+ * ldc x          ldc x
+ * imul           iadd
+ */
+int commutativity(CODE **c) {
+  int x,k;
+  if (is_ldc_int(*c,&x)
+      && is_iload(next(*c),&k)
+      && is_imul(next(next(*c)))) {
+    return replace(c,2, makeCODEiload(k,
+                        makeCODEldc_int(x,
+                        makeCODEimul(NULL))))
+  }
+  else if(is_ldc_int(*c,&x)
+          && is_iload(next(*c),&k)
+          && is_iadd(next(next(*c)))) {
+    return replace(c,2, makeCODEiload(k,
+                        makeCODEldc_int(x,
+                        makeCODEiadd(NULL))))
+  }
+  else
+    return 0;
+}
+
+/* ldc -1         ldc 1  
+ * imul           imul   
+ * ------>        ------>
+ * ineg            
+ */
+int more_multiplication_simplification(CODE **c) {
+  int x;
+  if (is_ldc_int(*c,&x) && is_imul(next(*c))) {
+     if (x==-1) return replace(c,2,makeCODEineg(NULL));
+     else if (x==1) return replace(c,2,NULL);
+     return 0;
+  }
+  return 0;
+}
+
 /* iload x        iload x        iload x
  * ldc 0          ldc 1          ldc 2
  * imul           imul           imul
