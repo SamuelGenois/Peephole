@@ -101,6 +101,7 @@ int simplify_astore(CODE **c)
  * A must not affect or use any element that is currently being dup or lower
  * The whole dup -- pop must not contains any label, goto, return or comparison
  * The whole dup -- pop must not change the stack size
+ * This peephole overides simplify_astore peephole.
  */
 int simplify_dup_pop(CODE **c){
   int t_inc = 0, inc, affected, use;
@@ -123,22 +124,47 @@ int simplify_dup_pop(CODE **c){
   return 0;
 }
 
- int mul_constants(CODE **c){
-   int inc = 0;
-   int i;
-   int loop = -1;
-   CODE *p = *c;
-   while(is_ldc_int(p, &i) && is_imul(next(p))){
-     ++loop;
-     inc *= i;
-     p = next(next(p));
-   }
-   if(loop == 0) return 0;
+/*
+ * aload x (iload x)
+ * aload y (iload y)
+ * swap
+ * -------->
+ * aload y (iload y)
+ * aload x (iload x)
+*/
+int simplify_swap(CODE **c){
+  int x, y;
+  if(is_iload(*c, &x)
+   && is_iload(next(*c), &y)
+    && is_swap(next(next(*c))
+    )){
+    return replace(c,3,makeCODEiload(y,
+                      makeCODEiload(x,NULL)));
+  }
+  else if(is_aload(*c, &x)
+   && is_iload(next(*c), &y)
+    && is_swap(next(next(*c)))
+    ){
+    return replace(c,3,makeCODEiload(y,
+                      makeCODEaload(x,NULL)));
+  }
+  else if(is_iload(*c, &x)
+   && is_aload(next(*c), &y)
+    && is_swap(next(next(*c)))
+    ){
+    return replace(c,3,makeCODEaload(y,
+                      makeCODEiload(x,NULL)));
+  }
+  else if(is_aload(*c, &x)
+   && is_aload(next(*c), &y)
+    && is_swap(next(next(*c)))
+    ){
+    return replace(c,3,makeCODEaload(y,
+                      makeCODEaload(x,NULL)));
+  }
+  return 0;
+}
 
-   return replace(c,(loop+1)*2,makeCODEldc_int(inc,
-                      makeCODEimul(NULL)
-   ));
- }
 
 /* iload x
  * ldc k   (0<=k<=127)
@@ -202,11 +228,74 @@ int simplify_goto_goto(CODE **c)
   return 0;
 }
 
+/* use_label L1
+ * ...
+ * use_label L2
+ * ...
+ * L1:
+ * L2:
+ * --------->
+ * use_label L2
+ * ...
+ * use_label L2
+ * ...
+ * L2:    (drop all label that refer to the same instruction)  
+ * This is going to be hard because the way labels are stored is inconsistent.
+ */
+int simplify_same_instruction_label(CODE **c){
+  int l1, l2;
+  int l_change = 0;
+  CODE *p = *c;
+  if(uses_label(p,&l1)){
+    droplabel(l1);
+    p = destination(l1);
+    while(is_label(next(p),&l2)){
+      l_change = 1;
+      l1 = l2;
+      p = next(p);
+    }
+    copylabel(l1);
+    if(l_change){
+      if(is_goto(*c,&l2))
+        return replace(c,1,makeCODEgoto(l1,NULL));
+      else if(is_ifeq(*c,&l2))
+        return replace(c,1,makeCODEifeq(l1,NULL));
+      else if(is_ifne(*c,&l2))
+        return replace(c,1,makeCODEifne(l1,NULL));
+      else if(is_if_acmpeq(*c,&l2))
+        return replace(c,1,makeCODEif_acmpeq(l1,NULL));
+      else if(is_if_acmpne(*c,&l2))
+        return replace(c,1,makeCODEif_acmpne(l1,NULL));
+      else if(is_ifnull(*c,&l2))
+        return replace(c,1,makeCODEifnull(l1,NULL));
+      else if(is_ifnonnull(*c,&l2))
+        return replace(c,1,makeCODEifnonnull(l1,NULL));
+      else if(is_if_icmpeq(*c,&l2))
+        return replace(c,1,makeCODEif_icmpeq(l1,NULL));
+      else if(is_if_icmpgt(*c,&l2))
+        return replace(c,1,makeCODEif_icmpgt(l1,NULL));
+      else if(is_if_icmplt(*c,&l2))
+        return replace(c,1,makeCODEif_icmplt(l1,NULL));
+      else if(is_if_icmple(*c,&l2))
+        return replace(c,1,makeCODEif_icmple(l1,NULL));
+      else if(is_if_icmpge(*c,&l2))
+        return replace(c,1,makeCODEif_icmpge(l1,NULL));
+      else if(is_if_icmpne(*c,&l2))
+        return replace(c,1,makeCODEif_icmpne(l1,NULL));
+    }
+  }
+  else if(is_label(p,&l1) && is_label(next(p),&l2)){
+    return replace(c,1,NULL);
+  }
+  return 0;
+}
+
 /* istore x
  * iload x
  * ----->
  * (removed both)
  * Keep the element in stack for next usage.
+ * NOTE: IS NOT SOUND. IGNORED!
 */
 int remove_storeloadcouple(CODE **c){
   int x1, x2;
@@ -297,9 +386,11 @@ void init_patterns(void) {
 	ADD_PATTERN(positive_increment);
 	ADD_PATTERN(negative_increment);
 	ADD_PATTERN(simplify_goto_goto);
+  ADD_PATTERN(simplify_same_instruction_label);
   ADD_PATTERN(more_multiplication_simplification);
 	ADD_PATTERN(add_constants);
   ADD_PATTERN(simplify_dup_pop);
+  ADD_PATTERN(simplify_swap);
 /*
   ADD_PATTERN(simplify_istore);
 	ADD_PATTERN(simplify_astore);
