@@ -344,17 +344,54 @@ int simplify_same_instruction_label(CODE **c){
   return 0;
 }
 
-/* istore x
- * iload x
+/* astore x (istore x)
+ * aload x  (iload x)
+ * ...A
+ * return (astore x) (iloadx)
  * ----->
- * (removed both)
+ * ...A
+ * return (astore x) (iloadx)
  * Keep the element in stack for next usage.
+ * A should not include another load x and should not have any goto,label and comparison
  * NOTE: IS NOT SOUND. IGNORED!
 */
 int remove_storeloadcouple(CODE **c){
   int x1, x2;
-  if(is_istore(*c, &x1) && is_iload(next(*c),&x2)){
+  int dump;
+  CODE *p = *c;
+  if(is_astore(p, &x1) && is_aload(next(p),&x2)){
     if(x1 == x2){
+      p = next(next(p));
+      while(!is_return(p) && !is_ireturn(p) && !is_areturn(p)){
+        if(is_aload(p, &x2) && x1 == x2){
+          return 0;
+        }
+        else if(is_astore(p, &x2) && x1 == x2){
+          break;
+        }
+        else if(stack_effect(p,&dump,&dump,&dump) != 0){
+          return 0;
+        }
+        p = next(p);
+      }
+      return replace(c,2, NULL);
+    }
+  }
+  else if(is_istore(p, &x1) && is_iload(next(p),&x2)){
+    if(x1 == x2){
+      p = next(next(p));
+      while(!is_return(p) && !is_ireturn(p) && !is_areturn(p)){
+        if(is_iload(p, &x2) && x1 == x2){
+          return 0;
+        }
+        else if(is_istore(p, &x2) && x1 == x2){
+          break;
+        }
+        else if(stack_effect(p,&dump,&dump,&dump) != 0){
+          return 0;
+        }
+        p = next(p);
+      }
       return replace(c,2, NULL);
     }
   }
@@ -445,17 +482,18 @@ void init_patterns(void) {
 	ADD_PATTERN(add_constants);
   ADD_PATTERN(simplify_dup_pop);
   ADD_PATTERN(simplify_swap);
+	ADD_PATTERN(remove_storeloadcouple);
   ADD_PATTERN(commutativity);
   ADD_PATTERN(ifsimplify);
 /*
   ADD_PATTERN(simplify_istore);
 	ADD_PATTERN(simplify_astore);
 	ADD_PATTERN(simplify_multiplication_right);
+	ADD_PATTERN(remove_storeloadcouple);
   ADD_PATTERN(simplify_istore);
 	ADD_PATTERN(simplify_astore);
 	ADD_PATTERN(positive_increment);
 	ADD_PATTERN(simplify_goto_goto);
-	ADD_PATTERN(remove_storeloadcouple);
 	ADD_PATTERN(add_constants);
 	ADD_PATTERN(mul_constants);
   */
