@@ -107,20 +107,17 @@ int simplify_dup_pop(CODE **c){
   CODE *p = *c;
   if(is_dup(p)){
     stack_effect(p,&t_inc,&affected,&use);
-    p = p->next;
-    while(!is_pop(p)){
-      if(stack_effect(p,&inc,&affected,&use) == 0 && (t_inc - affected) >= 0 && (t_inc - use) >= 0 && (t_inc += inc) >= 1){
-        printf("Something %d\n", t_inc);
-        p = p->next;
+    while(!is_pop(next(p))){
+      p = next(p);
+      if(stack_effect(p,&inc,&affected,&use) == 0 && (t_inc + affected) >= 0 && (t_inc + use) >= 0 && (t_inc += inc) >= 0){
       }
       else{
-        printf("Somethingelse\n");
         return 0;
       }
     }
-    printf("t_inc: %d\n",t_inc);
-    if(t_inc == 1){
-      return replace(c,1,NULL) && replace(&p,1,NULL);
+    if(t_inc == 0){
+      p->next = next(next(p));
+      return replace(c,1,NULL);
     }
   }
   return 0;
@@ -297,15 +294,15 @@ int simplify_istore(CODE **c)
 
 void init_patterns(void) {
 	ADD_PATTERN(simplify_multiplication_right);
-  ADD_PATTERN(simplify_istore);
-	ADD_PATTERN(simplify_astore);
-  ADD_PATTERN(simplify_dup_pop);
 	ADD_PATTERN(positive_increment);
 	ADD_PATTERN(negative_increment);
 	ADD_PATTERN(simplify_goto_goto);
   ADD_PATTERN(more_multiplication_simplification);
 	ADD_PATTERN(add_constants);
+  ADD_PATTERN(simplify_dup_pop);
 /*
+  ADD_PATTERN(simplify_istore);
+	ADD_PATTERN(simplify_astore);
 	ADD_PATTERN(simplify_multiplication_right);
   ADD_PATTERN(simplify_istore);
 	ADD_PATTERN(simplify_astore);
