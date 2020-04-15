@@ -26,17 +26,14 @@
  */
 int ifsimplify(CODE **c) {
   int val,l1a,l1b,l2a,l2b,l3;
-  if(is_if(c, &l1a)
-      && is_ldc_int(next(*c),&val) && val == 0
+  if( is_if(c, &l1a)
+      && is_ldc_int(nextby(*c,1),&val) && val == 0
       && is_goto(nextby(*c,2),&l2a)
       && is_label(nextby(*c,3),&l1b) && l1a == l1b && uniquelabel(l1b)
       && is_ldc_int(nextby(*c,4),&val) && val == 1
       && is_label(nextby(*c,5),&l2b) && l2a == l2b && uniquelabel(l2b)
-      && is_ifeq(*c, &l3)
+      && is_ifeq(nextby(*c,6), &l3)
     ) {
-      
-    printf("The if pattern is applied here\n");
-    /*
     droplabel(l1a);
     droplabel(l2a);
     if(is_ifeq(*c, &l1a))
@@ -63,7 +60,6 @@ int ifsimplify(CODE **c) {
       return replace(c,7, makeCODEif_icmplt(l3,NULL));
     if(is_if_icmplt(*c, &l1a))
       return replace(c,7, makeCODEif_icmpge(l3,NULL));
-    */
   }
   return 0;
 }
