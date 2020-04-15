@@ -25,14 +25,14 @@ int commutativity(CODE **c) {
       && is_imul(next(next(*c)))) {
     return replace(c,2, makeCODEiload(k,
                         makeCODEldc_int(x,
-                        makeCODEimul(NULL))))
+                        makeCODEimul(NULL))));
   }
   else if(is_ldc_int(*c,&x)
           && is_iload(next(*c),&k)
           && is_iadd(next(next(*c)))) {
     return replace(c,2, makeCODEiload(k,
                         makeCODEldc_int(x,
-                        makeCODEiadd(NULL))))
+                        makeCODEiadd(NULL))));
   }
   else
     return 0;
