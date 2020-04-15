@@ -10,6 +10,64 @@
  * email: hendren@cs.mcgill.ca, mis@brics.dk
  */
 
+/* if_x L1
+ * iconst_0
+ * goto L2
+ * L1:      (is unique)
+ * iconst_1
+ * L2:      (is unique)
+ * ifeq L3
+ * ...
+ * L3:
+ * --------->
+ * if_notx L3
+ * ...
+ * L3:  
+ */
+int ifsimplify(CODE **c) {
+  int val,l1a,l1b,l2a,l2b,l3;
+  if(is_if(c, &l1a)
+      && is_ldc_int(next(*c),&val) && val == 0
+      && is_goto(nextby(*c,2),&l2a)
+      && is_label(nextby(*c,3),&l1b) && l1a == l1b && uniquelabel(l1b)
+      && is_ldc_int(nextby(*c,4),&val) && val == 1
+      && is_label(nextby(*c,5),&l2b) && l2a == l2b && uniquelabel(l2b)
+      && is_ifeq(*c, &l3)
+    ) {
+      
+    printf("The if pattern is applied here\n");
+    /*
+    droplabel(l1a);
+    droplabel(l2a);
+    if(is_ifeq(*c, &l1a))
+      return replace(c,7, makeCODEifne(l3,NULL));
+    if(is_ifne(*c, &l1a))
+      return replace(c,7, makeCODEifeq(l3,NULL));
+    if(is_ifnull(*c, &l1a))
+      return replace(c,7, makeCODEifnonnull(l3,NULL));
+    if(is_ifnonnull(*c, &l1a))
+      return replace(c,7, makeCODEifnull(l3,NULL));
+    if(is_if_acmpeq(*c, &l1a))
+      return replace(c,7, makeCODEif_acmpne(l3,NULL));
+    if(is_if_acmpne(*c, &l1a))
+      return replace(c,7, makeCODEif_acmpeq(l3,NULL));
+    if(is_if_icmpeq(*c, &l1a))
+      return replace(c,7, makeCODEif_icmpne(l3,NULL));
+    if(is_if_icmpne(*c, &l1a))
+      return replace(c,7, makeCODEif_icmpeq(l3,NULL));
+    if(is_if_icmpgt(*c, &l1a))
+      return replace(c,7, makeCODEif_icmple(l3,NULL));
+    if(is_if_icmple(*c, &l1a))
+      return replace(c,7, makeCODEif_icmpgt(l3,NULL));
+    if(is_if_icmpge(*c, &l1a))
+      return replace(c,7, makeCODEif_icmplt(l3,NULL));
+    if(is_if_icmplt(*c, &l1a))
+      return replace(c,7, makeCODEif_icmpge(l3,NULL));
+    */
+  }
+  return 0;
+}
+
 /* ldc x          ldc x
  * iload k        iload k    
  * imul           iadd   
@@ -23,14 +81,14 @@ int commutativity(CODE **c) {
   if (is_ldc_int(*c,&x)
       && is_iload(next(*c),&k)
       && is_imul(next(next(*c)))) {
-    return replace(c,2, makeCODEiload(k,
+    return replace(c,3, makeCODEiload(k,
                         makeCODEldc_int(x,
                         makeCODEimul(NULL))));
   }
   else if(is_ldc_int(*c,&x)
           && is_iload(next(*c),&k)
           && is_iadd(next(next(*c)))) {
-    return replace(c,2, makeCODEiload(k,
+    return replace(c,3, makeCODEiload(k,
                         makeCODEldc_int(x,
                         makeCODEiadd(NULL))));
   }
@@ -305,6 +363,8 @@ void init_patterns(void) {
 	ADD_PATTERN(simplify_goto_goto);
   ADD_PATTERN(more_multiplication_simplification);
 	ADD_PATTERN(add_constants);
+  ADD_PATTERN(commutativity);
+  ADD_PATTERN(ifsimplify);
 /*
 	ADD_PATTERN(simplify_multiplication_right);
   ADD_PATTERN(simplify_istore);
