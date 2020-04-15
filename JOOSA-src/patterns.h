@@ -117,21 +117,21 @@ int remove_storeloadcouple(CODE **c){
  * ldc n
  * iadd
  * -------->
- * ldc_int (a+b+...+n)
+ * ldc (a+b+...+n)
  * iadd
  */
  int add_constants(CODE **c){
    int inc = 0;
    int i;
-   int loop = 0;
+   int loop = -1;
    CODE *p = *c;
    while(is_ldc_int(p, &i) && is_iadd(next(p))){
      ++loop;
      inc += i;
      p = next(next(p));
    }
-   if(loop == 0) return 0;
-   return replace(c,loop*2,makeCODEldc_int(inc,
+   if(loop <= 0) return 0;
+   return replace(c,2,makeCODEldc_int(inc,
                       makeCODEiadd(NULL)
    ));
  }
@@ -145,25 +145,29 @@ int remove_storeloadcouple(CODE **c){
  * ldc n
  * imul
  * -------->
- * ldc_int (a+b+...+n)
+ * ldc_int (a*b*...*n)
  * imul
  */
  int mul_constants(CODE **c){
    int inc = 0;
    int i;
-   int loop = 0;
+   int loop = -1;
    CODE *p = *c;
    while(is_ldc_int(p, &i) && is_imul(next(p))){
+     ++loop;
      inc *= i;
      p = next(next(p));
    }
    if(loop == 0) return 0;
 
-   return replace(c,loop*2,makeCODEldc_int(inc,
+   return replace(c,2,makeCODEldc_int(inc,
                       makeCODEimul(NULL)
    ));
  }
+
+
 void init_patterns(void) {
+
 	ADD_PATTERN(simplify_multiplication_right);
 	ADD_PATTERN(simplify_astore);
 	ADD_PATTERN(positive_increment);
